@@ -1,8 +1,6 @@
-# hub-spokes
-Frontend hub and spoke diagram implementation using React
-
 # How to run?
-I used React inside an HTML template. Just download the HTML files, and open them in editor and run using live server.
+I used React inside an HTML template. 
+Just download the HTML files, open them in the editor, and run them using a live server.
 
 ### There are two files:
 
