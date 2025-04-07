@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hub & Spoke Diagram</title>
+  <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/babel-standalone@6.26.0/babel.min.js"></script>
+  <style>
+    body {
+      background: #f3e9d2;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+    }
+
+    .canvas-container {
+      overflow: auto;
+      width: 1450px;
+      height: 625px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: 1px solid #0e3c47;
+      margin: 0 auto;
+    }
+
+    canvas {
+      background: #f3e9d2;
+      display: block;
+      cursor: grab;
+    }
+
+    button {
+      margin: 10px;
+      padding: 8px 16px;
+      font-size: 14px;
+      background-color: #0e3c47;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background-color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useRef, useEffect, useState } = React;
+
+    const HubSpokeDiagram = () => {
+      const canvasRef = useRef(null);
+      const [spokes, setSpokes] = useState(6);
+      const radius = 180;
+      const hubRadius = 70;
+      const hubBorder = 20;
+      const center = { x: 725, y: 300 };
+      const circleRadius = 8;
+      const spokeThickness = 10;
+      const numberOffset = 25;
+
+      const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+      const [isDraggingHub, setIsDraggingHub] = useState(false);
+      const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+      const [draggedSpokeIndex, setDraggedSpokeIndex] = useState(null);
+      const [spokeOffsets, setSpokeOffsets] = useState(() =>
+        Array(12).fill({ x: 0, y: 0 })
+      );
+      
+      const drawDiagram = () => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw hub
+        ctx.beginPath();
+        ctx.arc(center.x + canvasOffset.x, center.y + canvasOffset.y, hubRadius + hubBorder / 2, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#0e3c47";
+        ctx.lineWidth = hubBorder;
+        ctx.stroke();
+
+        // Draw HUB text
+        ctx.font = "bold 24px Arial";
+        ctx.fillStyle = "#0e3c47";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("HUB", center.x + canvasOffset.x, center.y + canvasOffset.y);
+
+        let prevLabelPositions = [];
+
+        for (let i = 0; i < spokes; i++) {
+          const angle = (2 * Math.PI * i) / spokes + Math.PI / 2;
+          const offset = spokeOffsets[i] || { x: 0, y: 0 };
+
+          const spokeEndX = center.x + radius * Math.cos(angle) + canvasOffset.x + offset.x;
+          const spokeEndY = center.y + radius * Math.sin(angle) + canvasOffset.y + offset.y;
+
+          const gap = hubRadius + hubBorder / 2 + 5;
+          const xStart = center.x + gap * Math.cos(angle) + canvasOffset.x;
+          const yStart = center.y + gap * Math.sin(angle) + canvasOffset.y;
+
+          // Draw spoke line
+          ctx.beginPath();
+          ctx.moveTo(xStart, yStart);
+          ctx.lineTo(spokeEndX, spokeEndY);
+          ctx.strokeStyle = "#0e3c47";
+          ctx.lineWidth = spokeThickness;
+          ctx.stroke();
+
+          // Draw hollow circle
+          const circleX = spokeEndX + (circleRadius * 0.4) * Math.cos(angle);
+          const circleY = spokeEndY + (circleRadius * 0.4) * Math.sin(angle);
+          ctx.beginPath();
+          ctx.arc(circleX, circleY, circleRadius, 0, 2 * Math.PI);
+          ctx.strokeStyle = "#0e3c47";
+          ctx.lineWidth = spokeThickness;
+          ctx.stroke();
+
+          // Prepare text label
+          const labelX = spokeEndX + (circleRadius + spokeThickness + 40) * Math.cos(angle);
+          const labelY = spokeEndY + (circleRadius + spokeThickness + 40) * Math.sin(angle);
+
+          const firstLine = "Non ullamco eiusmod cupidatat deserunt";
+          const secondLine = "occaecat qui non sit sit cillum pariatur culpa in";
+          ctx.font = "bold 12px Arial";
+          ctx.fillStyle = "#0e3c47";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+
+          // Estimate text width and height
+          const firstLineWidth = ctx.measureText(firstLine).width;
+          const secondLineWidth = ctx.measureText(secondLine).width;
+          const textWidth = Math.max(firstLineWidth, secondLineWidth);
+          const textHeight = 32; // two lines with 16px height
+
+          let adjustedLabelX = labelX;
+          let adjustedLabelY = labelY;
+
+          // Check for overlap and adjust if needed
+          let margin = 30; // minimum margin to avoid overlap
+          let maxAttempts = 10; // avoid infinite loop, restrict how many times we try to adjust
+          let attempts = 0;
+
+          while (
+            prevLabelPositions.some(
+              (pos) =>
+                Math.abs(pos.x - adjustedLabelX) < margin && Math.abs(pos.y - adjustedLabelY) < margin
+            ) && attempts < maxAttempts
+          ) {
+            adjustedLabelX += margin;
+            adjustedLabelY += margin;
+            attempts++;
+          }
+
+          // Draw text
+          ctx.fillText(firstLine, adjustedLabelX, adjustedLabelY);
+          ctx.fillText(secondLine, adjustedLabelX, adjustedLabelY + 16);
+
+          // Store label position for future overlap checks
+          prevLabelPositions.push({ x: adjustedLabelX, y: adjustedLabelY });
+        }
+      };
+
+      const isPointInHub = (x, y) => {
+        const dx = x - (center.x + canvasOffset.x);
+        const dy = y - (center.y + canvasOffset.y);
+        return Math.sqrt(dx * dx + dy * dy) <= hubRadius;
+      };
+
+      const getClickedSpoke = (x, y) => {
+        for (let i = 0; i < spokes; i++) {
+          const angle = (2 * Math.PI * i) / spokes + Math.PI / 2;
+          const offset = spokeOffsets[i] || { x: 0, y: 0 };
+
+          const spokeEndX = center.x + radius * Math.cos(angle) + canvasOffset.x + offset.x;
+          const spokeEndY = center.y + radius * Math.sin(angle) + canvasOffset.y + offset.y;
+
+          const circleX = spokeEndX + (circleRadius * 0.4) * Math.cos(angle);
+          const circleY = spokeEndY + (circleRadius * 0.4) * Math.sin(angle);
+
+          const labelX = spokeEndX + (circleRadius + spokeThickness + 30) * Math.cos(angle);
+          const labelY = spokeEndY + (circleRadius + spokeThickness + 30) * Math.sin(angle);
+
+          // Estimate bounding box for the text
+          const textWidth = 500; // rough width in pixels (tweak if needed)
+          const textHeight = 32; // for 2 lines (16px height each)
+
+          // Convert center-aligned label into bounding box
+          const left = labelX - textWidth / 2;
+          const right = labelX + textWidth / 2;
+          const top = labelY;
+          const bottom = labelY + textHeight;
+
+          if (x >= left && x <= right && y >= top && y <= bottom) {
+            return i;
+          }
+        }
+        return null;
+      };
+
+      const handleMouseDown = (e) => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        if (isPointInHub(mouseX, mouseY)) {
+          setIsDraggingHub(true);
+        } else {
+          const clicked = getClickedSpoke(mouseX, mouseY);
+          if (clicked !== null) {
+            setDraggedSpokeIndex(clicked);
+          }
+        }
+        setLastMousePos({ x: e.clientX, y: e.clientY });
+        canvasRef.current.style.cursor = "grabbing";
+      };
+
+      const handleMouseMove = (e) => {
+        const dx = e.clientX - lastMousePos.x;
+        const dy = e.clientY - lastMousePos.y;
+        setLastMousePos({ x: e.clientX, y: e.clientY });
+
+        if (isDraggingHub) {
+          setCanvasOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+        } else if (draggedSpokeIndex !== null) {
+          setSpokeOffsets((prev) => {
+            const updated = [...prev];
+            const current = updated[draggedSpokeIndex] || { x: 0, y: 0 };
+            updated[draggedSpokeIndex] = { x: current.x + dx, y: current.y + dy };
+            return updated;
+          });
+        }
+      };
+
+      const handleMouseUp = () => {
+        setIsDraggingHub(false);
+        setDraggedSpokeIndex(null);
+        canvasRef.current.style.cursor = "grab";
+      };
+
+      const handleMouseOut = () => {
+        setIsDraggingHub(false);
+        setDraggedSpokeIndex(null);
+        canvasRef.current.style.cursor = "grab";
+      };
+
+      useEffect(() => {
+        drawDiagram();
+      }, [spokes, canvasOffset, spokeOffsets]);
+
+      return (
+        <div>
+          <div className="canvas-container">
+            <canvas
+              ref={canvasRef}
+              width={1450}
+              height={625}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseOut={handleMouseOut}
+            ></canvas>
+          </div>
+          <div>
+            <button onClick={() => setSpokes(spokes + 1)} disabled={spokes >= 6}>Add Spoke</button>
+            <button onClick={() => setSpokes(Math.max(2, spokes - 1))} disabled={spokes <= 2}>
+              Remove Spoke
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<HubSpokeDiagram />, document.getElementById("root"));
+  </script>
+</body>
+</html>
