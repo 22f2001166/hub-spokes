@@ -1,5 +1,6 @@
-# How to run?
-I used React inside an HTML template. 
+## Hub Spoke
+
+A Hub and Spokes diagram created using React inside a HTML template/ 
 Just download the HTML files, open them in the editor, and run them using a live server.
 
 ### There are two files:
